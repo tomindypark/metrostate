@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Correlation Demo</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        .chart-container { display: flex; justify-content: center; margin-top: 20px; }
+        .point { cursor: grab; }
+        .label { font-size: 16px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2>Interactive Correlation Visualization</h2>
+    <p>Drag points to see how correlation changes. The trend line updates dynamically.</p>
+    <p><strong>Correlation (r-value): <span id="correlation">0.00</span></strong></p>
+
+    <div class="chart-container">
+        <svg width="500" height="500"></svg>
+    </div>
+
+    <script>
+        const width = 500, height = 500;
+        const margin = 40;
+        const xScale = d3.scaleLinear().domain([0, 10]).range([margin, width - margin]);
+        const yScale = d3.scaleLinear().domain([0, 10]).range([height - margin, margin]);
+
+        let data = [
+            { x: 2, y: 2 }, { x: 3, y: 4 }, { x: 4, y: 5 },
+            { x: 5, y: 6 }, { x: 6, y: 7 }, { x: 7, y: 8 }
+        ];
+
+        const svg = d3.select("svg");
+
+        // Draw axes
+        svg.append("g").attr("transform", `translate(0, ${height - margin})`)
+            .call(d3.axisBottom(xScale));
+        svg.append("g").attr("transform", `translate(${margin}, 0)`)
+            .call(d3.axisLeft(yScale));
+
+        // Function to compute correlation
+        function calculateCorrelation(data) {
+            const n = data.length;
+            const sumX = d3.sum(data, d => d.x);
+            const sumY = d3.sum(data, d => d.y);
+            const sumXY = d3.sum(data, d => d.x * d.y);
+            const sumX2 = d3.sum(data, d => d.x * d.x);
+            const sumY2 = d3.sum(data, d => d.y * d.y);
+
+            const numerator = (n * sumXY) - (sumX * sumY);
+            const denominator = Math.sqrt(((n * sumX2) - (sumX * sumX)) * ((n * sumY2) - (sumY * sumY)));
+
+            return denominator === 0 ? 0 : (numerator / denominator).toFixed(2);
+        }
+
+        // Function to update the plot
+        function updatePlot() {
+            const points = svg.selectAll(".point").data(data);
+
+            points.enter().append("circle")
+                .attr("class", "point")
+                .attr("r", 6)
+                .merge(points)
+                .attr("cx", d => xScale(d.x))
+                .attr("cy", d => yScale(d.y))
+                .call(d3.drag()
+                    .on("drag", (event, d) => {
+                        d.x = Math.max(0, Math.min(10, xScale.invert(event.x)));
+                        d.y = Math.max(0, Math.min(10, yScale.invert(event.y)));
+                        updatePlot();
+                    })
+                );
+
+            // Compute correlation
+            document.getElementById("correlation").textContent = calculateCorrelation(data);
+
+            // Compute best-fit line
+            const meanX = d3.mean(data, d => d.x);
+            const meanY = d3.mean(data, d => d.y);
+            const slope = d3.sum(data, d => (d.x - meanX) * (d.y - meanY)) / d3.sum(data, d => (d.x - meanX) ** 2);
+            const intercept = meanY - slope * meanX;
+
+            const lineData = [
+                { x: 0, y: intercept },
+                { x: 10, y: slope * 10 + intercept }
+            ];
+
+            const line = d3.line()
+                .x(d => xScale(d.x))
+                .y(d => yScale(d.y));
+
+            let trendLine = svg.selectAll(".trend-line").data([lineData]);
+
+            trendLine.enter().append("path")
+                .attr("class", "trend-line")
+                .merge(trendLine)
+                .attr("d", line)
+                .attr("stroke", "red")
+                .attr("stroke-width", 2)
+                .attr("fill", "none");
+
+            trendLine.exit().remove();
+            points.exit().remove();
+        }
+
+        updatePlot();
+    </script>
+
+</body>
+</html>
